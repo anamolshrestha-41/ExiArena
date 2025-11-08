@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Futsal Polls</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container">
+      <h1 class="brand">Futsal Polls</h1>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/admin">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="intro">
+      <h2>Active Polls</h2>
+      <p class="muted">Vote for your preferred time/option. Polls automatically close when expired.</p>
+    </section>
+
+    <% if (!polls || polls.length === 0) { %>
+      <div class="empty">No polls available. Admin can create one from the admin panel.</div>
+    <% } %>
+
+    <section class="polls-grid">
+      <% polls.forEach(function(poll) { 
+           const now = new Date();
+           const expired = poll.expiresAt ? new Date(poll.expiresAt) <= now : false;
+      %>
+
+        <article class="poll-card" data-poll-id="<%= poll._id %>">
+          <header class="poll-header">
+            <h3 class="poll-title"><%= poll.question %></h3>
+            <% if (poll.expiresAt) { %>
+              <small class="expires <%= expired ? 'closed' : '' %>">
+                Expires: <%= new Date(poll.expiresAt).toLocaleString() %>
+                <% if (expired) { %> — Closed <% } %>
+              </small>
+            <% } %>
+          </header>
+
+          <% if (poll.description) { %>
+            <p class="poll-desc"><%= poll.description %></p>
+          <% } %>
+
+          <% if (poll.image && poll.image.url) { %>
+            <div class="poll-image-wrap">
+              <img class="poll-image" src="<%= poll.image.url %>" alt="poll image" />
+            </div>
+          <% } %>
+
+          <div class="options">
+            <% poll.options.forEach(function(opt, idx) { %>
+              <button class="option-btn" data-option-index="<%= idx %>" <%= expired ? 'disabled' : '' %>>
+                <span class="opt-text"><%= opt.optionText %></span>
+                <span class="opt-votes">(<span class="vote-count"><%= opt.votes || 0 %></span>)</span>
+              </button>
+            <% }) %>
+          </div>
+
+          <footer class="poll-footer">
+            <div class="total">Total votes: <span class="total-count"><%= poll.totalVotes || poll.options.reduce((s,o)=>s+(o.votes||0),0) %></span></div>
+            <div class="status">
+              <% if (expired) { %>
+                <span class="badge closed">Closed</span>
+              <% } else { %>
+                <span class="badge open">Open</span>
+              <% } %>
+            </div>
+          </footer>
+        </article>
+
+      <% }) %>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <small>© <%= new Date().getFullYear() %> Futsal Polls — Built for organizing matches</small>
+    </div>
+  </footer>
+
+<script>
+document.addEventListener('click', async function (e) {
+  const btn = e.target.closest('.option-btn');
+  if (!btn) return;
+
+  const pollCard = btn.closest('.poll-card');
+  const pollId = pollCard.getAttribute('data-poll-id');
+  const optionIndex = btn.getAttribute('data-option-index');
+
+  // prevent clicking closed polls
+  if (btn.disabled) return;
+
+  // optimistic UI lock
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  try {
+    const res = await fetch(`/api/polls/${pollId}/vote`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ optionIndex: Number(optionIndex) })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({message: 'Vote failed'}));
+      throw new Error(err.message || 'Vote failed');
+    }
+
+    // response should return updated poll
+    const updatedPoll = await res.json();
+
+    // update counts in UI
+    const voteCountsEls = pollCard.querySelectorAll('.vote-count');
+    updatedPoll.options.forEach((o, i) => {
+      if (voteCountsEls[i]) voteCountsEls[i].textContent = o.votes || 0;
+    });
+
+    const totalEl = pollCard.querySelector('.total-count');
+    if (totalEl) totalEl.textContent = updatedPoll.totalVotes || updatedPoll.options.reduce((s,o)=>s+(o.votes||0),0);
+
+    // if poll closed server-side, disable buttons
+    if (updatedPoll.expiresAt && new Date(updatedPoll.expiresAt) <= new Date()) {
+      pollCard.querySelectorAll('.option-btn').forEach(b=>b.disabled = true);
+      pollCard.querySelector('.badge.open')?.classList?.replace('open','closed');
+      pollCard.querySelector('.expires')?.classList?.add('closed');
+    }
+
+  } catch (err) {
+    alert(err.message || 'Unable to record vote.');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

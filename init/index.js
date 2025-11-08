@@ -9,10 +9,15 @@ async function main(){
 }
 
 const initDB= async()=>{
+  try {
     await Poll.deleteMany({});
-   initData.data= initData.data.map((obj)=>({...obj}))
+    initData.data = initData.data.map((obj)=>({...obj}));
     await Poll.insertMany(initData.data);
-    console.log("data was initialized...")
+    console.log("data was initialized...");
+  } catch (error) {
+    console.error("Error initializing database:", error);
+    process.exit(1);
+  }
 }
 
 initDB();

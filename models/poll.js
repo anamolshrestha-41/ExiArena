@@ -36,7 +36,7 @@ const pollSchema = new mongoose.Schema(
     image: imageSchema,
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // assuming you’ll have a User model for admin
+      ref: "User", // assuming you'll have a User model for admin
       required: true,
     },
     expiresAt: {
